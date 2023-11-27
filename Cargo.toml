@@ -1,0 +1,18 @@
+[package]
+name = "lsegui"
+version = "0.1.0"
+edition = "2021"
+authors = ["Rin Wood"]
+repository = "https://github.com/Atlas16A/LSegui"
+description = "Interactive graph visualization of the Gall Language Art form for Lost Skies in Rust"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+egui = "0.23"
+eframe = "0.23"
+petgraph = "0.6"
+egui_graphs = "0.16.0"
+
+[patch.crates-io]
+"egui_graphs" = { path = "./egui_graphs" }
