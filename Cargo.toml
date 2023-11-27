@@ -14,5 +14,5 @@ eframe = "0.23"
 petgraph = "0.6"
 egui_graphs = "0.16.0"
 
-[patch.crates-io]
-"egui_graphs" = { path = "./egui_graphs" }
+# [patch.crates-io]
+# "egui_graphs" = { path = "./egui_graphs" }
