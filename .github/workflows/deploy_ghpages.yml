@@ -23,23 +23,55 @@ concurrency:
 
 
 jobs:
-    release:
-        runs-on: ubuntu-latest
-        steps:
-        - uses: actions-rs/toolchain@v1
-          with:
-            toolchain: stable
-            target: wasm32-unknown-unknown
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Restore cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/bin
+            ~/.cargo/git
+            ~/.cargo/registry
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-        - uses: jetli/trunk-action@v0.1.0
-        - uses: jetli/wasm-bindgen-action@v0.1.0
+      - name: Install Trunk
+        uses: jetli/trunk-action@v0.4.0
+        with:
+          # Optional version of trunk to install(eg. 'v0.16.0', 'latest')
+          version: "latest"
+      - name: Add wasm target
+        run: |
+          rustup target add wasm32-unknown-unknown
+      - name: Create Empty Manga directory
+        # This prevents an issue from build.rs
+        run: |
+          mkdir -p ./src/assets/manga
+      - name: Build the Rust WASM app and all of its assets
+        run: trunk build --public-url ${{ github.event.repository.name }} --release
 
-        - uses: actions/checkout@v2
+      - name: Setup Pages
+        uses: actions/configure-pages@v3
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v1
+        with:
+          path: "./dist"
 
-        - run: trunk build --release
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
 
-        - uses: peaceiris/actions-gh-pages@v3
-          if: github.ref == 'refs/heads/main'
-          with:
-            github_token: $
-            publish_dir: ./dist
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v1
