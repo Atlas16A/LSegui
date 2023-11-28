@@ -1,0 +1,45 @@
+name: Deploy gh-pages
+
+on:
+  # We only run this on merges to master
+  push:
+    branches: ["master"]
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+# to only run when you do a new github release, comment out above part and uncomment the below trigger.
+# on:
+#   release:
+#     types: ["published"]
+
+
+permissions:
+  contents: write # for committing to gh-pages branch
+
+# Allow only one concurrent deployment, skipping runs queued between the run in-progress and latest queued.
+# However, do NOT cancel in-progress runs as we want to allow these production deployments to complete.
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+
+jobs:
+    release:
+        runs-on: ubuntu-latest
+        steps:
+        - uses: actions-rs/toolchain@v1
+          with:
+            toolchain: stable
+            target: wasm32-unknown-unknown
+
+        - uses: jetli/trunk-action@v0.1.0
+        - uses: jetli/wasm-bindgen-action@v0.1.0
+
+        - uses: actions/checkout@v2
+
+        - run: trunk build --release
+
+        - uses: peaceiris/actions-gh-pages@v3
+          if: github.ref == 'refs/heads/main'
+          with:
+            github_token: $
+            publish_dir: ./dist
