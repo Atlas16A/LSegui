@@ -1,4 +1,4 @@
-use std::time::Instant;
+use instant::Instant;
 
 use egui::{
     emath::Rot2, epaint::TextShape, Color32, FontFamily, FontId, Pos2, Rect, Shape, Stroke, Vec2,
