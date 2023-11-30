@@ -50,22 +50,20 @@ impl Lsegui {
     fn connections_check(
         &mut self,
         connections: &str,
-        phrase: &str,
         g: &mut StableGraph<(), ()>,
         node_indices: Vec<petgraph::prelude::NodeIndex>,
         char_node_pairs: &mut [(char, NodeIndex<u32>)],
         k: usize,
     ) {
         for target_char in connections.chars() {
-            if phrase.contains(target_char) {
-                let target_index = char_node_pairs
-                    .iter()
-                    .find(|(c, _)| *c == target_char)
-                    .map(|(_, index)| *index);
+            let target_indices: Vec<NodeIndex<u32>> = char_node_pairs
+                .iter()
+                .filter(|(c, _)| *c == target_char)
+                .map(|(_, index)| *index)
+                .collect();
 
-                if let Some(target_index) = target_index {
-                    g.add_edge(node_indices[k], target_index, ());
-                }
+            for target_index in target_indices {
+                g.add_edge(node_indices[k], target_index, ());
             }
         }
     }
@@ -99,7 +97,6 @@ impl Lsegui {
                     'A' | 'a' => (),
                     'B' | 'b' => self.connections_check(
                         "A",
-                        word,
                         &mut g,
                         node_indices.clone(),
                         &mut char_node_pairs,
@@ -109,7 +106,6 @@ impl Lsegui {
                         let connections = "AB";
                         self.connections_check(
                             connections,
-                            word,
                             &mut g,
                             node_indices.clone(),
                             &mut char_node_pairs,
@@ -120,7 +116,6 @@ impl Lsegui {
                         let connections = "ABC";
                         self.connections_check(
                             connections,
-                            word,
                             &mut g,
                             node_indices.clone(),
                             &mut char_node_pairs,
@@ -131,7 +126,6 @@ impl Lsegui {
                         let connections = "ACD";
                         self.connections_check(
                             connections,
-                            word,
                             &mut g,
                             node_indices.clone(),
                             &mut char_node_pairs,
@@ -142,7 +136,6 @@ impl Lsegui {
                         let connections = "ABDE";
                         self.connections_check(
                             connections,
-                            word,
                             &mut g,
                             node_indices.clone(),
                             &mut char_node_pairs,
@@ -153,7 +146,6 @@ impl Lsegui {
                         let connections = "AEF";
                         self.connections_check(
                             connections,
-                            word,
                             &mut g,
                             node_indices.clone(),
                             &mut char_node_pairs,
@@ -164,7 +156,6 @@ impl Lsegui {
                         let connections = "ABEFG";
                         self.connections_check(
                             connections,
-                            word,
                             &mut g,
                             node_indices.clone(),
                             &mut char_node_pairs,
@@ -175,7 +166,6 @@ impl Lsegui {
                         let connections = "ABCEGH";
                         self.connections_check(
                             connections,
-                            word,
                             &mut g,
                             node_indices.clone(),
                             &mut char_node_pairs,
@@ -186,7 +176,6 @@ impl Lsegui {
                         let connections = "ACDEFGHI";
                         self.connections_check(
                             connections,
-                            word,
                             &mut g,
                             node_indices.clone(),
                             &mut char_node_pairs,
@@ -197,7 +186,6 @@ impl Lsegui {
                         let connections = "ABCIJ";
                         self.connections_check(
                             connections,
-                            word,
                             &mut g,
                             node_indices.clone(),
                             &mut char_node_pairs,
@@ -208,7 +196,6 @@ impl Lsegui {
                         let connections = "ACDIJK";
                         self.connections_check(
                             connections,
-                            word,
                             &mut g,
                             node_indices.clone(),
                             &mut char_node_pairs,
@@ -219,7 +206,6 @@ impl Lsegui {
                         let connections = "ABCDEIKL";
                         self.connections_check(
                             connections,
-                            word,
                             &mut g,
                             node_indices.clone(),
                             &mut char_node_pairs,
@@ -230,7 +216,6 @@ impl Lsegui {
                         let connections = "ACDEFHJKM";
                         self.connections_check(
                             connections,
-                            word,
                             &mut g,
                             node_indices.clone(),
                             &mut char_node_pairs,
@@ -241,7 +226,6 @@ impl Lsegui {
                         let connections = "ABEFGILMN";
                         self.connections_check(
                             connections,
-                            word,
                             &mut g,
                             node_indices.clone(),
                             &mut char_node_pairs,
@@ -252,7 +236,6 @@ impl Lsegui {
                         let connections = "ACGHIKLNO";
                         self.connections_check(
                             connections,
-                            word,
                             &mut g,
                             node_indices.clone(),
                             &mut char_node_pairs,
@@ -263,7 +246,6 @@ impl Lsegui {
                         let connections = "ABCDEHIJKLMP";
                         self.connections_check(
                             connections,
-                            word,
                             &mut g,
                             node_indices.clone(),
                             &mut char_node_pairs,
@@ -274,7 +256,6 @@ impl Lsegui {
                         let connections = "ABCDEGHIKLOPQ";
                         self.connections_check(
                             connections,
-                            word,
                             &mut g,
                             node_indices.clone(),
                             &mut char_node_pairs,
@@ -285,7 +266,6 @@ impl Lsegui {
                         let connections = "ADEFGHILMO";
                         self.connections_check(
                             connections,
-                            word,
                             &mut g,
                             node_indices.clone(),
                             &mut char_node_pairs,
@@ -296,7 +276,6 @@ impl Lsegui {
                         let connections = "ACDEFHIJLMNOQS";
                         self.connections_check(
                             connections,
-                            word,
                             &mut g,
                             node_indices.clone(),
                             &mut char_node_pairs,
@@ -307,7 +286,6 @@ impl Lsegui {
                         let connections = "ACDFGIJKMPQRST";
                         self.connections_check(
                             connections,
-                            word,
                             &mut g,
                             node_indices.clone(),
                             &mut char_node_pairs,
@@ -318,7 +296,6 @@ impl Lsegui {
                         let connections = "ABDEFHJKLNPQS";
                         self.connections_check(
                             connections,
-                            word,
                             &mut g,
                             node_indices.clone(),
                             &mut char_node_pairs,
@@ -329,7 +306,6 @@ impl Lsegui {
                         let connections = "AV";
                         self.connections_check(
                             connections,
-                            word,
                             &mut g,
                             node_indices.clone(),
                             &mut char_node_pairs,
@@ -340,7 +316,6 @@ impl Lsegui {
                         let connections = "AW";
                         self.connections_check(
                             connections,
-                            word,
                             &mut g,
                             node_indices.clone(),
                             &mut char_node_pairs,
@@ -351,7 +326,6 @@ impl Lsegui {
                         let connections = "AX";
                         self.connections_check(
                             connections,
-                            word,
                             &mut g,
                             node_indices.clone(),
                             &mut char_node_pairs,
@@ -362,7 +336,6 @@ impl Lsegui {
                         let connections = "AY";
                         self.connections_check(
                             connections,
-                            word,
                             &mut g,
                             node_indices.clone(),
                             &mut char_node_pairs,
