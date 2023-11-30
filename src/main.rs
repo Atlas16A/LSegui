@@ -79,7 +79,7 @@ impl Lsegui {
         println!("Phrase: {}", &phrase);
         println!("Binding: {:?}", &binding.clone().collect::<Vec<_>>());
 
-        binding.for_each(|word| {
+        binding.clone().for_each(|word| {
             println!("Phrase: {}", &word);
             //Add Node for each letter in phrase
             let mut node_indices: Vec<NodeIndex<u32>> = vec![];
@@ -393,6 +393,44 @@ impl Lsegui {
                 .unwrap()
                 .set_label(char.to_string());
         }
+
+        self.layout_nodes(binding, node_indices);
+    }
+
+    fn layout_nodes(
+        &mut self,
+        binding: std::str::SplitWhitespace<'_>,
+        node_indices: Vec<NodeIndex>,
+    ) {
+        //Position each node along a circle for each word in phrase with radius 100 with the first circle being at the center of the canvas and the next circle being 100 pixels to the bottom of the first circle
+        let center_x = 0.0;
+        // x-coordinate of the center of the canvas
+        let mut center_y = 0.0;
+        // y-coordinate of the center of the canvas
+        let mut offset = 0;
+        let radius = 100.0;
+        let vertical_offset = radius * 2.0;
+        binding.for_each(|word| {
+            let mut angle: f32 = -90.0;
+            let angle_increment = 360.0 / word.len() as f32;
+
+            for (i, mut node_index) in node_indices.iter().enumerate() {
+                if i < word.len() {
+                    node_index = &node_indices[i + offset];
+                    let x = center_x + angle.to_radians().cos() * radius;
+                    let y = center_y + angle.to_radians().sin() * radius;
+                    self.g
+                        .node_mut(*node_index)
+                        .unwrap()
+                        .set_location(egui::Pos2::new(x, y));
+                    angle += angle_increment;
+                } else {
+                    break;
+                }
+            }
+            offset += word.len();
+            center_y += vertical_offset;
+        });
     }
 }
 
