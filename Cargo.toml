@@ -10,14 +10,14 @@ description = "Interactive graph visualization of the Gall Language Art form for
 egui = "0.23"
 eframe = "0.23"
 petgraph = "0.6"
-egui_graphs = "0.17.0"
+egui_graphs = "0.16.0"
 "getrandom" = {version = "0.2.11", features = ["js"] }
 log = "0.4"
 instant =  {version = "0.1.12", features = ["wasm-bindgen"] }
 
-#[patch.crates-io]
+[patch.crates-io]
 #"egui_graphs" = { path = "./egui_graphs" }
-#"egui_graphs" = { git = "https://github.com/blitzarx1/egui_graphs" }
+"egui_graphs" = { git = "https://github.com/blitzarx1/egui_graphs" }
 
 # native:
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
