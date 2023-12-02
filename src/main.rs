@@ -395,35 +395,38 @@ impl Lsegui {
 
     fn layout_nodes(
         &mut self,
-        binding: std::str::SplitWhitespace<'_>,
+        phrase: std::str::SplitWhitespace<'_>,
         node_indices: Vec<NodeIndex>,
     ) {
         //Position each node along a circle for each word in phrase with radius 100 with the first circle being at the center of the canvas and the next circle being 100 pixels to the bottom of the first circle
-        let center_x = 0.0;
-        // x-coordinate of the center of the canvas
-        let mut center_y = 0.0;
-        // y-coordinate of the center of the canvas
-        let mut offset = 0;
-        let radius = 100.0;
-        let vertical_offset = radius * 2.0;
-        binding.for_each(|word| {
+
+        let center_x = 0.0; // x-coordinate of the center of the canvas
+        let mut center_y = 0.0; // y-coordinate of the center of the canvas
+        let mut offset = 0; // offset to keep track of the current node index
+        let mut prev_radius = 0.0; // radius of the previous circle to calculate the center_y of the next circle
+
+        phrase.for_each(|word| {
             let mut angle: f32 = -90.0;
             let angle_increment = 360.0 / word.len() as f32;
+            let radius = 20.0 * word.len() as f32;
+
+            if prev_radius != 0.0 {
+                center_y += prev_radius + radius;
+            }
 
             node_indices.iter().enumerate().for_each(|(i, _)| {
                 if i < word.len() {
-                    let node_index = &node_indices[i + offset];
                     let x = center_x + angle.to_radians().cos() * radius;
                     let y = center_y + angle.to_radians().sin() * radius;
                     self.g
-                        .node_mut(*node_index)
-                        .unwrap()
+                        .node_mut(node_indices[i + offset])
+                        .expect("NodeIndex should be within node indices")
                         .set_location(egui::Pos2::new(x, y));
                     angle += angle_increment;
                 }
             });
+            prev_radius = radius;
             offset += word.len();
-            center_y += vertical_offset;
         });
     }
 }
