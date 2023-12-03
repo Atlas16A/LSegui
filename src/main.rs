@@ -85,13 +85,31 @@ impl Lsegui {
     fn node_creation(&mut self, phrase: &str) {
         let mut g = StableGraph::new();
 
+        //Sanitize the input to only english letters
+        let phrase = phrase
+            .chars()
+            .filter(|c| c.is_ascii_alphabetic() || c.is_whitespace())
+            .collect::<String>();
+
         let binding = phrase.to_uppercase();
-        let binding = binding.split_whitespace();
+        let binding = binding
+            .split_whitespace()
+            .map(|word| {
+                if word.chars().next() == word.chars().last() {
+                    //remove the last letter from the word
+
+                    let new_word = word.chars().take(word.len() - 1).collect::<String>();
+                    new_word
+                } else {
+                    word.to_string()
+                }
+            })
+            .collect::<Vec<_>>();
 
         println!("Phrase: {}", &phrase);
-        println!("Binding: {:?}", &binding.clone().collect::<Vec<_>>());
+        println!("Binding: {:?}", &binding.clone().iter().collect::<Vec<_>>());
 
-        binding.clone().for_each(|word| {
+        binding.clone().iter().for_each(|word| {
             println!("Phrase: {}", &word);
             //Add Node for each letter in phrase
             let mut node_indices: Vec<NodeIndex<u32>> = vec![];
@@ -376,11 +394,7 @@ impl Lsegui {
         let node_indices = g.node_indices().collect::<Vec<_>>();
         self.g = Graph::from(&g);
 
-        let phrase = phrase
-            .split_whitespace()
-            .collect::<Vec<_>>()
-            .concat()
-            .to_uppercase();
+        let phrase = binding.concat().to_uppercase();
 
         //Set Label for each node, Label is the char in phrase at the same index as the node
         phrase.char_indices().for_each(|(i, char)| {
@@ -393,19 +407,18 @@ impl Lsegui {
         self.layout_nodes(binding, node_indices);
     }
 
-    fn layout_nodes(
-        &mut self,
-        phrase: std::str::SplitWhitespace<'_>,
-        node_indices: Vec<NodeIndex>,
-    ) {
-        //Position each node along a circle for each word in phrase with radius 100 with the first circle being at the center of the canvas and the next circle being 100 pixels to the bottom of the first circle
+    fn layout_nodes(&mut self, phrase: Vec<String>, node_indices: Vec<NodeIndex>) {
+        //Position each node along a circle for each word in phrase
+        //with radius based off the length of the word
+        //with the first circle being at the center of the canvas
+        //and the next circle being the radius of the first circle + the radius of the next circle
 
         let center_x = 0.0; // x-coordinate of the center of the canvas
         let mut center_y = 0.0; // y-coordinate of the center of the canvas
         let mut offset = 0; // offset to keep track of the current node index
         let mut prev_radius = 0.0; // radius of the previous circle to calculate the center_y of the next circle
 
-        phrase.for_each(|word| {
+        phrase.iter().for_each(|word| {
             let mut angle: f32 = -90.0;
             let angle_increment = 360.0 / word.len() as f32;
             let radius = 20.0 * word.len() as f32;
@@ -422,6 +435,7 @@ impl Lsegui {
                         .node_mut(node_indices[i + offset])
                         .expect("NodeIndex should be within node indices")
                         .set_location(egui::Pos2::new(x, y));
+
                     angle += angle_increment;
                 }
             });
@@ -429,6 +443,17 @@ impl Lsegui {
             offset += word.len();
         });
     }
+
+    /* fn analyse_phrase(&mut self, phrase: Vec<String>, node_indices: Vec<NodeIndex>) {
+        //Analyse the phrase, given N words, where 1 is the first word and N is the last word
+        //for each word in the phrase:
+        //  find a letter shared between each subsequent word, so that word 1 shares a letter with word 2, word 2 shares a letter with word 3, etc.
+        //  if there is no letter shared between the current word and the next word
+        //      then shift the nodes of each of the two words away from the border between the two words
+        //      so that the nodes of the current word are shifted away from the bottom most point of the circle of the current word
+        //      and the nodes of the next word are shifted away from the top most point of the circle of the next word
+        //      node shift should shift the nodes as little distance as possible
+    } */
 }
 
 fn node_clean_up(
