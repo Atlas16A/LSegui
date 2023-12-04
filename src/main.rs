@@ -16,6 +16,143 @@ mod edge;
 mod node;
 use node::NodeShapeAnimated;
 
+struct Circles {
+    circles: Vec<Circle>,
+}
+
+struct Circle {
+    center_x: f32,
+    center_y: f32,
+    radius: f32,
+    word: Word,
+}
+
+impl Circle {
+    fn new(
+        word: Word,
+        graph: &mut Graph<(), (), Directed, u32, NodeShapeAnimated, DefaultEdgeShape>,
+    ) -> Self {
+        let mut angle: f32 = -90.0;
+        let angle_increment = 360.0 / word.word.len() as f32;
+        let radius = 20.0 * word.word.len() as f32;
+        let center_x = 0.0;
+        let center_y = 0.0;
+
+        word.nodes.iter().enumerate().for_each(|(i, node)| {
+            if i < word.word.len() {
+                let x = center_x + angle.to_radians().cos() * radius;
+                let y = center_y + angle.to_radians().sin() * radius;
+                graph
+                    .node_mut(*node)
+                    .expect("NodeIndex should be within node indices")
+                    .set_location(egui::Pos2::new(x, y));
+
+                angle += angle_increment;
+            }
+        });
+
+        Self {
+            center_x,
+            center_y,
+            radius,
+            word,
+        }
+    }
+
+    fn set_pos(
+        &mut self,
+        x: f32,
+        y: f32,
+        graph: &mut Graph<(), (), Directed, u32, NodeShapeAnimated, DefaultEdgeShape>,
+    ) {
+        self.center_x = x;
+        self.center_y = y;
+        //Adjust the position of the circle
+        //And the position of the nodes in the circle
+        let mut angle: f32 = -90.0;
+        let angle_increment = 360.0 / self.word.word.len() as f32;
+        let radius = 20.0 * self.word.word.len() as f32;
+
+        self.word.nodes.iter().enumerate().for_each(|(i, node)| {
+            if i < self.word.word.len() {
+                let x = self.center_x + angle.to_radians().cos() * radius;
+                let y = self.center_y + angle.to_radians().sin() * radius;
+                graph
+                    .node_mut(*node)
+                    .expect("NodeIndex should be within node indices")
+                    .set_location(egui::Pos2::new(x, y));
+
+                angle += angle_increment;
+            }
+        });
+    }
+}
+#[derive(Clone)]
+struct Word {
+    word: String,
+    nodes: Vec<NodeIndex<u32>>,
+}
+
+impl Word {
+    fn new(word: String, nodes: Vec<NodeIndex<u32>>) -> Self {
+        Self { word, nodes }
+    }
+}
+
+struct Phrase {
+    phrase: Vec<String>,
+    phrase_words: Vec<Word>,
+    graph: StableGraph<(), ()>,
+}
+
+impl Phrase {
+    fn new(phrase: &str) -> Self {
+        let mut g: StableGraph<(), ()> = StableGraph::new();
+
+        let phrase = phrase
+            .chars()
+            .filter(|c| c.is_ascii_alphabetic() || c.is_whitespace())
+            .collect::<String>()
+            .to_uppercase()
+            .split_whitespace()
+            .map(|word| {
+                if word.chars().next() == word.chars().last() {
+                    let new_word = word.chars().take(word.len() - 1).collect::<String>();
+                    new_word
+                } else {
+                    word.to_string()
+                }
+            })
+            .collect::<Vec<_>>();
+        let mut phrase_words = vec![];
+        phrase.clone().iter().for_each(|word| {
+            let mut node_indices: Vec<NodeIndex<u32>> = vec![];
+            word.chars().for_each(|_char| {
+                node_indices.push(g.add_node(()));
+            });
+
+            let word = Word::new(word.to_string(), node_indices);
+
+            phrase_words.push(word);
+        });
+
+        Self {
+            phrase,
+            phrase_words,
+            graph: g,
+        }
+    }
+}
+
+/* enum NodeLayout {
+    RepelTop,
+    RepelBottom,
+    SameCharTop,
+    SameCharBottom,
+}
+
+use NodeLayout::*; */
+
 pub struct Lsegui {
     //The graph that will be displayed
     g: Graph<(), (), Directed, DefaultIx, NodeShapeAnimated>,
@@ -23,6 +160,10 @@ pub struct Lsegui {
     input_string: String,
     //Boolean to display the graph once the user has entered a phrase
     graph_show: bool,
+    //Circles to display the nodes in the graph
+    circles: Circles,
+    //The processed phrase that the user entered
+    phrase: Phrase,
 }
 
 impl Lsegui {
@@ -32,12 +173,16 @@ impl Lsegui {
         //Apply the style from the theme module
         let style = theme::style();
         cc.egui_ctx.set_style(style);
+        let circles = Circles { circles: vec![] };
+        let phrase = Phrase::new("Default Phrase");
 
         Self {
             //By default the graph is empty and not displayed
             g: Graph::from(&g),
             input_string: String::new(),
             graph_show: false,
+            circles,
+            phrase,
         }
     }
     //Reset the graph and its metadata to ensure that the graph is ready for the next input
@@ -49,365 +194,306 @@ impl Lsegui {
         GraphView::<(), (), Directed, DefaultIx>::reset_metadata(ui);
     }
 
-    //Check if the char in the phrase is connected to any other char in the phrase and add an edge between them
-    //Some nodes may not get any connections if the current word does not have any letters for the current character to connect to
-    fn connections_check(
-        &mut self,
-        connections: &str,
-        g: &mut StableGraph<(), ()>,
-        node_indices: Vec<petgraph::prelude::NodeIndex>,
-        char_node_pairs: &mut [(char, NodeIndex<u32>)],
-        k: usize,
-    ) {
-        connections.chars().for_each(|target_char| {
-            let target_indices: Vec<NodeIndex<u32>> = char_node_pairs
-                .iter()
-                .filter(|(c, _)| *c == target_char)
-                .map(|(_, index)| *index)
-                .collect();
+    fn graph_creation(&mut self, phrase: &str) {
+        self.phrase = Phrase::new(phrase);
 
-            target_indices.into_iter().for_each(|target_index| {
-                g.add_edge(node_indices[k], target_index, ());
-            });
-        });
-    }
+        self.phrase.phrase_words.iter().for_each(|word| {
+            let word_char_pairs = word.word.chars().zip(word.nodes.clone());
 
-    //Create the graph from the user input
-    //Take in the phrase and convert it to uppercase
-    //Split the phrase into words
-    //For each word in the phrase:
-    //  Add a node for each letter in the word
-    //  Add edges between the nodes for each letter in the word
-    //  Set the label for each node to the letter in the word at the same index as the node
-    //  Position each node along a circle for each word in phrase
-    //      with the first circle being at the center of the canvas and
-    //      the next circle being to the bottom of the first circle
-    fn node_creation(&mut self, phrase: &str) {
-        let mut g = StableGraph::new();
+            word_char_pairs
+                .clone()
+                .for_each(|(current_char, current_node)| {
+                    match current_char {
+                        'A' | 'a' => (),
+                        'B' | 'b' => {
+                            let connections = "A";
+                            refactor_connections_check(
+                                connections,
+                                &word_char_pairs,
+                                &mut self.phrase.graph,
+                                &current_node,
+                            );
+                        }
+                        'C' | 'c' => {
+                            let connections = "AB";
+                            refactor_connections_check(
+                                connections,
+                                &word_char_pairs,
+                                &mut self.phrase.graph,
+                                &current_node,
+                            );
+                        }
+                        'D' | 'd' => {
+                            let connections = "ABC";
+                            refactor_connections_check(
+                                connections,
+                                &word_char_pairs,
+                                &mut self.phrase.graph,
+                                &current_node,
+                            );
+                        }
+                        'E' | 'e' => {
+                            let connections = "ACD";
+                            refactor_connections_check(
+                                connections,
+                                &word_char_pairs,
+                                &mut self.phrase.graph,
+                                &current_node,
+                            );
+                        }
+                        'F' | 'f' => {
+                            let connections = "ABDE";
+                            refactor_connections_check(
+                                connections,
+                                &word_char_pairs,
+                                &mut self.phrase.graph,
+                                &current_node,
+                            );
+                        }
+                        'G' | 'g' => {
+                            let connections = "AEF";
+                            refactor_connections_check(
+                                connections,
+                                &word_char_pairs,
+                                &mut self.phrase.graph,
+                                &current_node,
+                            );
+                        }
+                        'H' | 'h' => {
+                            let connections = "ABEFG";
+                            refactor_connections_check(
+                                connections,
+                                &word_char_pairs,
+                                &mut self.phrase.graph,
+                                &current_node,
+                            );
+                        }
+                        'I' | 'i' => {
+                            let connections = "ABCEGH";
+                            refactor_connections_check(
+                                connections,
+                                &word_char_pairs,
+                                &mut self.phrase.graph,
+                                &current_node,
+                            );
+                        }
+                        'J' | 'j' => {
+                            let connections = "ACDEFGHI";
+                            refactor_connections_check(
+                                connections,
+                                &word_char_pairs,
+                                &mut self.phrase.graph,
+                                &current_node,
+                            );
+                        }
+                        'K' | 'k' => {
+                            let connections = "ABCIJ";
+                            refactor_connections_check(
+                                connections,
+                                &word_char_pairs,
+                                &mut self.phrase.graph,
+                                &current_node,
+                            );
+                        }
+                        'L' | 'l' => {
+                            let connections = "ACDIJK";
+                            refactor_connections_check(
+                                connections,
+                                &word_char_pairs,
+                                &mut self.phrase.graph,
+                                &current_node,
+                            );
+                        }
+                        'M' | 'm' => {
+                            let connections = "ABCDEIKL";
+                            refactor_connections_check(
+                                connections,
+                                &word_char_pairs,
+                                &mut self.phrase.graph,
+                                &current_node,
+                            );
+                        }
+                        'N' | 'n' => {
+                            let connections = "ACDEFHJKM";
+                            refactor_connections_check(
+                                connections,
+                                &word_char_pairs,
+                                &mut self.phrase.graph,
+                                &current_node,
+                            );
+                        }
+                        'O' | 'o' => {
+                            let connections = "ABEFGILMN";
+                            refactor_connections_check(
+                                connections,
+                                &word_char_pairs,
+                                &mut self.phrase.graph,
+                                &current_node,
+                            );
+                        }
+                        'P' | 'p' => {
+                            let connections = "ACGHIKLNO";
+                            refactor_connections_check(
+                                connections,
+                                &word_char_pairs,
+                                &mut self.phrase.graph,
+                                &current_node,
+                            );
+                        }
+                        'Q' | 'q' => {
+                            let connections = "ABCDEHIJKLMP";
+                            refactor_connections_check(
+                                connections,
+                                &word_char_pairs,
+                                &mut self.phrase.graph,
+                                &current_node,
+                            );
+                        }
+                        'R' | 'r' => {
+                            let connections = "ABCDEGHIKLOPQ";
+                            refactor_connections_check(
+                                connections,
+                                &word_char_pairs,
+                                &mut self.phrase.graph,
+                                &current_node,
+                            );
+                        }
+                        'S' | 's' => {
+                            let connections = "ADEFGHILMO";
+                            refactor_connections_check(
+                                connections,
+                                &word_char_pairs,
+                                &mut self.phrase.graph,
+                                &current_node,
+                            );
+                        }
+                        'T' | 't' => {
+                            let connections = "ACDEFHIJLMNOQS";
+                            refactor_connections_check(
+                                connections,
+                                &word_char_pairs,
+                                &mut self.phrase.graph,
+                                &current_node,
+                            );
+                        }
+                        'U' | 'u' => {
+                            let connections = "ACDFGIJKMPQRST";
+                            refactor_connections_check(
+                                connections,
+                                &word_char_pairs,
+                                &mut self.phrase.graph,
+                                &current_node,
+                            );
+                        }
+                        'V' | 'v' => {
+                            let connections = "ABDEFHJKLNPQS";
+                            refactor_connections_check(
+                                connections,
+                                &word_char_pairs,
+                                &mut self.phrase.graph,
+                                &current_node,
+                            );
+                        }
+                        'W' | 'w' => {
+                            let connections = "AV";
+                            refactor_connections_check(
+                                connections,
+                                &word_char_pairs,
+                                &mut self.phrase.graph,
+                                &current_node,
+                            );
+                        }
+                        'X' | 'x' => {
+                            let connections = "AW";
+                            refactor_connections_check(
+                                connections,
+                                &word_char_pairs,
+                                &mut self.phrase.graph,
+                                &current_node,
+                            );
+                        }
+                        'Y' | 'y' => {
+                            let connections = "AX";
+                            refactor_connections_check(
+                                connections,
+                                &word_char_pairs,
+                                &mut self.phrase.graph,
+                                &current_node,
+                            );
+                        }
+                        'Z' | 'z' => {
+                            let connections = "AY";
+                            refactor_connections_check(
+                                connections,
+                                &word_char_pairs,
+                                &mut self.phrase.graph,
+                                &current_node,
+                            );
+                        }
+                        _ => (),
+                    };
+                });
 
-        //Sanitize the input to only english letters
-        let phrase = phrase
-            .chars()
-            .filter(|c| c.is_ascii_alphabetic() || c.is_whitespace())
-            .collect::<String>();
-
-        let binding = phrase.to_uppercase();
-        let binding = binding
-            .split_whitespace()
-            .map(|word| {
-                if word.chars().next() == word.chars().last() {
-                    //remove the last letter from the word
-
-                    let new_word = word.chars().take(word.len() - 1).collect::<String>();
-                    new_word
-                } else {
-                    word.to_string()
+            word.nodes.iter().for_each(|current_node| {
+                if self
+                    .phrase
+                    .graph
+                    .neighbors_directed(*current_node, petgraph::Direction::Outgoing)
+                    .count()
+                    == 0
+                    && self
+                        .phrase
+                        .graph
+                        .neighbors_directed(*current_node, petgraph::Direction::Incoming)
+                        .count()
+                        == 0
+                {
+                    //Out of the nodes in the current word,
+                    //connect the current node to the node
+                    //representing the character closest to the current character on the alphabet
+                    let mut closest_index = 0;
+                    let mut closest_distance = 26;
+                    let current_char = word_char_pairs
+                        .clone()
+                        .filter(|(_, n)| *n == *current_node)
+                        .map(|(c, _)| c)
+                        .next()
+                        .unwrap();
+                    word_char_pairs
+                        .clone()
+                        .filter(|(c, _)| *c != current_char)
+                        .enumerate()
+                        .for_each(|(i, (c, _))| {
+                            let distance = (current_char as i32 - c as i32).abs();
+                            if distance < closest_distance {
+                                closest_distance = distance;
+                                closest_index = i;
+                            }
+                        });
+                    self.phrase
+                        .graph
+                        .add_edge(*current_node, word.nodes[closest_index], ());
                 }
-            })
-            .collect::<Vec<_>>();
-
-        println!("Phrase: {}", &phrase);
-        println!("Binding: {:?}", &binding.clone().iter().collect::<Vec<_>>());
-
-        binding.clone().iter().for_each(|word| {
-            println!("Phrase: {}", &word);
-            //Add Node for each letter in phrase
-            let mut node_indices: Vec<NodeIndex<u32>> = vec![];
-            word.chars().for_each(|_char| {
-                node_indices.push(g.add_node(()));
-            });
-
-            //put the chars from phrase into tuple pairs with the node idex of the char
-            let mut char_node_pairs: Vec<(char, NodeIndex<u32>)> = vec![];
-            word.char_indices().for_each(|(i, char)| {
-                char_node_pairs.push((char, node_indices[i]));
-            });
-
-            //Add edges for each letter in phrase
-            word.char_indices().for_each(|(k, char)| {
-                match char {
-                    'A' | 'a' => (),
-                    'B' | 'b' => self.connections_check(
-                        "A",
-                        &mut g,
-                        node_indices.clone(),
-                        &mut char_node_pairs,
-                        k,
-                    ),
-                    'C' | 'c' => {
-                        let connections = "AB";
-                        self.connections_check(
-                            connections,
-                            &mut g,
-                            node_indices.clone(),
-                            &mut char_node_pairs,
-                            k,
-                        );
-                    }
-                    'D' | 'd' => {
-                        let connections = "ABC";
-                        self.connections_check(
-                            connections,
-                            &mut g,
-                            node_indices.clone(),
-                            &mut char_node_pairs,
-                            k,
-                        );
-                    }
-                    'E' | 'e' => {
-                        let connections = "ACD";
-                        self.connections_check(
-                            connections,
-                            &mut g,
-                            node_indices.clone(),
-                            &mut char_node_pairs,
-                            k,
-                        );
-                    }
-                    'F' | 'f' => {
-                        let connections = "ABDE";
-                        self.connections_check(
-                            connections,
-                            &mut g,
-                            node_indices.clone(),
-                            &mut char_node_pairs,
-                            k,
-                        );
-                    }
-                    'G' | 'g' => {
-                        let connections = "AEF";
-                        self.connections_check(
-                            connections,
-                            &mut g,
-                            node_indices.clone(),
-                            &mut char_node_pairs,
-                            k,
-                        );
-                    }
-                    'H' | 'h' => {
-                        let connections = "ABEFG";
-                        self.connections_check(
-                            connections,
-                            &mut g,
-                            node_indices.clone(),
-                            &mut char_node_pairs,
-                            k,
-                        );
-                    }
-                    'I' | 'i' => {
-                        let connections = "ABCEGH";
-                        self.connections_check(
-                            connections,
-                            &mut g,
-                            node_indices.clone(),
-                            &mut char_node_pairs,
-                            k,
-                        );
-                    }
-                    'J' | 'j' => {
-                        let connections = "ACDEFGHI";
-                        self.connections_check(
-                            connections,
-                            &mut g,
-                            node_indices.clone(),
-                            &mut char_node_pairs,
-                            k,
-                        );
-                    }
-                    'K' | 'k' => {
-                        let connections = "ABCIJ";
-                        self.connections_check(
-                            connections,
-                            &mut g,
-                            node_indices.clone(),
-                            &mut char_node_pairs,
-                            k,
-                        );
-                    }
-                    'L' | 'l' => {
-                        let connections = "ACDIJK";
-                        self.connections_check(
-                            connections,
-                            &mut g,
-                            node_indices.clone(),
-                            &mut char_node_pairs,
-                            k,
-                        );
-                    }
-                    'M' | 'm' => {
-                        let connections = "ABCDEIKL";
-                        self.connections_check(
-                            connections,
-                            &mut g,
-                            node_indices.clone(),
-                            &mut char_node_pairs,
-                            k,
-                        );
-                    }
-                    'N' | 'n' => {
-                        let connections = "ACDEFHJKM";
-                        self.connections_check(
-                            connections,
-                            &mut g,
-                            node_indices.clone(),
-                            &mut char_node_pairs,
-                            k,
-                        );
-                    }
-                    'O' | 'o' => {
-                        let connections = "ABEFGILMN";
-                        self.connections_check(
-                            connections,
-                            &mut g,
-                            node_indices.clone(),
-                            &mut char_node_pairs,
-                            k,
-                        );
-                    }
-                    'P' | 'p' => {
-                        let connections = "ACGHIKLNO";
-                        self.connections_check(
-                            connections,
-                            &mut g,
-                            node_indices.clone(),
-                            &mut char_node_pairs,
-                            k,
-                        );
-                    }
-                    'Q' | 'q' => {
-                        let connections = "ABCDEHIJKLMP";
-                        self.connections_check(
-                            connections,
-                            &mut g,
-                            node_indices.clone(),
-                            &mut char_node_pairs,
-                            k,
-                        );
-                    }
-                    'R' | 'r' => {
-                        let connections = "ABCDEGHIKLOPQ";
-                        self.connections_check(
-                            connections,
-                            &mut g,
-                            node_indices.clone(),
-                            &mut char_node_pairs,
-                            k,
-                        );
-                    }
-                    'S' | 's' => {
-                        let connections = "ADEFGHILMO";
-                        self.connections_check(
-                            connections,
-                            &mut g,
-                            node_indices.clone(),
-                            &mut char_node_pairs,
-                            k,
-                        );
-                    }
-                    'T' | 't' => {
-                        let connections = "ACDEFHIJLMNOQS";
-                        self.connections_check(
-                            connections,
-                            &mut g,
-                            node_indices.clone(),
-                            &mut char_node_pairs,
-                            k,
-                        );
-                    }
-                    'U' | 'u' => {
-                        let connections = "ACDFGIJKMPQRST";
-                        self.connections_check(
-                            connections,
-                            &mut g,
-                            node_indices.clone(),
-                            &mut char_node_pairs,
-                            k,
-                        );
-                    }
-                    'V' | 'v' => {
-                        let connections = "ABDEFHJKLNPQS";
-                        self.connections_check(
-                            connections,
-                            &mut g,
-                            node_indices.clone(),
-                            &mut char_node_pairs,
-                            k,
-                        );
-                    }
-                    'W' | 'w' => {
-                        let connections = "AV";
-                        self.connections_check(
-                            connections,
-                            &mut g,
-                            node_indices.clone(),
-                            &mut char_node_pairs,
-                            k,
-                        );
-                    }
-                    'X' | 'x' => {
-                        let connections = "AW";
-                        self.connections_check(
-                            connections,
-                            &mut g,
-                            node_indices.clone(),
-                            &mut char_node_pairs,
-                            k,
-                        );
-                    }
-                    'Y' | 'y' => {
-                        let connections = "AX";
-                        self.connections_check(
-                            connections,
-                            &mut g,
-                            node_indices.clone(),
-                            &mut char_node_pairs,
-                            k,
-                        );
-                    }
-                    'Z' | 'z' => {
-                        let connections = "AY";
-                        self.connections_check(
-                            connections,
-                            &mut g,
-                            node_indices.clone(),
-                            &mut char_node_pairs,
-                            k,
-                        );
-                    }
-                    _ => (),
-                };
-            });
-
-            //Deal with nodes that do not have any connections
-            //Had to seperate from the previous loop because need to have all the edges added before checking for nodes with no connections
-            word.char_indices().for_each(|(k, char)| {
-                node_clean_up(
-                    &mut g,
-                    node_indices.clone(),
-                    k,
-                    char_node_pairs.clone(),
-                    char,
-                );
             });
         });
 
-        let node_indices = g.node_indices().collect::<Vec<_>>();
-        self.g = Graph::from(&g);
+        self.g = Graph::from(&self.phrase.graph);
 
-        let phrase = binding.concat().to_uppercase();
-
-        //Set Label for each node, Label is the char in phrase at the same index as the node
-        phrase.char_indices().for_each(|(i, char)| {
-            self.g
-                .node_mut(node_indices[i])
-                .unwrap()
-                .set_label(char.to_string());
+        self.phrase.phrase_words.iter().for_each(|word| {
+            for (node, letter) in word.nodes.iter().zip(word.word.chars()) {
+                self.g
+                    .node_mut(*node)
+                    .unwrap()
+                    .set_label(letter.to_string());
+            }
         });
 
-        self.layout_nodes(binding, node_indices);
+        self.node_circle_create();
+
+        //testing ideas above
     }
 
-    fn layout_nodes(&mut self, phrase: Vec<String>, node_indices: Vec<NodeIndex>) {
+    fn node_circle_create(&mut self) {
         //Position each node along a circle for each word in phrase
         //with radius based off the length of the word
         //with the first circle being at the center of the canvas
@@ -415,32 +501,19 @@ impl Lsegui {
 
         let center_x = 0.0; // x-coordinate of the center of the canvas
         let mut center_y = 0.0; // y-coordinate of the center of the canvas
-        let mut offset = 0; // offset to keep track of the current node index
         let mut prev_radius = 0.0; // radius of the previous circle to calculate the center_y of the next circle
 
-        phrase.iter().for_each(|word| {
-            let mut angle: f32 = -90.0;
-            let angle_increment = 360.0 / word.len() as f32;
-            let radius = 20.0 * word.len() as f32;
-
+        self.phrase.phrase_words.iter().for_each(|word| {
+            let radius = 20.0 * word.word.len() as f32;
             if prev_radius != 0.0 {
                 center_y += prev_radius + radius;
             }
+            let mut circle = Circle::new(word.clone(), &mut self.g);
+            circle.set_pos(center_x, center_y, &mut self.g);
 
-            node_indices.iter().enumerate().for_each(|(i, _)| {
-                if i < word.len() {
-                    let x = center_x + angle.to_radians().cos() * radius;
-                    let y = center_y + angle.to_radians().sin() * radius;
-                    self.g
-                        .node_mut(node_indices[i + offset])
-                        .expect("NodeIndex should be within node indices")
-                        .set_location(egui::Pos2::new(x, y));
+            self.circles.circles.push(circle);
 
-                    angle += angle_increment;
-                }
-            });
             prev_radius = radius;
-            offset += word.len();
         });
     }
 
@@ -456,7 +529,25 @@ impl Lsegui {
     } */
 }
 
-fn node_clean_up(
+//Check if the char in the phrase is connected to any other char in the phrase and add an edge between them
+//Some nodes may not get any connections if the current word does not have any letters for the current character to connect to
+fn refactor_connections_check(
+    connections: &str,
+    word_char_pairs: &std::iter::Zip<std::str::Chars<'_>, std::vec::IntoIter<NodeIndex>>,
+    g: &mut StableGraph<(), ()>,
+    current_node: &NodeIndex,
+) {
+    connections.chars().for_each(|target_char| {
+        word_char_pairs
+            .clone()
+            .filter(|(c_c, _)| *c_c == target_char)
+            .for_each(|target_index| {
+                g.add_edge(*current_node, target_index.1, ());
+            });
+    });
+}
+
+/* fn node_clean_up(
     g: &mut StableGraph<(), ()>,
     node_indices: Vec<NodeIndex>,
     k: usize,
@@ -490,6 +581,7 @@ fn node_clean_up(
         g.add_edge(node_indices[k], node_indices[closest_index], ());
     }
 }
+ */
 
 impl App for Lsegui {
     fn update(&mut self, ctx: &Context, _: &mut eframe::Frame) {
@@ -506,7 +598,7 @@ impl App for Lsegui {
                     let phrase = self.input_string.clone();
                     let phrase = phrase.as_str();
                     //Create the graph from the input
-                    self.node_creation(phrase);
+                    self.graph_creation(phrase);
                     //Display the graph
                     self.graph_show = true;
                 }

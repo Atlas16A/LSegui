@@ -1,6 +1,6 @@
 [package]
 name = "lsegui"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 authors = ["Rin Wood"]
 repository = "https://github.com/Atlas16A/LSegui"
