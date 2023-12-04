@@ -23,7 +23,7 @@ struct Circles {
 struct Circle {
     center_x: f32,
     center_y: f32,
-    radius: f32,
+    //radius: f32,
     word: Word,
 }
 
@@ -54,7 +54,7 @@ impl Circle {
         Self {
             center_x,
             center_y,
-            radius,
+            //radius,
             word,
         }
     }
@@ -100,7 +100,7 @@ impl Word {
 }
 
 struct Phrase {
-    phrase: Vec<String>,
+    //phrase: Vec<String>,
     phrase_words: Vec<Word>,
     graph: StableGraph<(), ()>,
 }
@@ -137,7 +137,7 @@ impl Phrase {
         });
 
         Self {
-            phrase,
+            //phrase,
             phrase_words,
             graph: g,
         }
