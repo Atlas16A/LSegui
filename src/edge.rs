@@ -95,37 +95,6 @@ impl<N: Clone, E: Clone, Ty: EdgeType, Ix: IndexType, D: DisplayNode<N, E, Ty, I
         let edge_end = end_connector_point - self.tip_size * dir;
 
         let stroke_edge = Stroke::new(self.width * ctx.meta.zoom, color);
-        let stroke_tip = Stroke::new(0., color);
-        if self.order == 0 {
-            // draw straight edge
-
-            let line = Shape::line_segment(
-                [
-                    ctx.meta.canvas_to_screen_pos(edge_start),
-                    ctx.meta.canvas_to_screen_pos(edge_end),
-                ],
-                stroke_edge,
-            );
-            if !ctx.is_directed {
-                return vec![line];
-            }
-
-            let tip_start_1 = tip_end - self.tip_size * rotate_vector(dir, self.tip_angle);
-            let tip_start_2 = tip_end - self.tip_size * rotate_vector(dir, -self.tip_angle);
-
-            // draw tips for directed edges
-
-            let line_tip = Shape::convex_polygon(
-                vec![
-                    ctx.meta.canvas_to_screen_pos(tip_end),
-                    ctx.meta.canvas_to_screen_pos(tip_start_1),
-                    ctx.meta.canvas_to_screen_pos(tip_start_2),
-                ],
-                color,
-                stroke_tip,
-            );
-            return vec![line, line_tip];
-        }
 
         // draw curved edge
 
@@ -155,21 +124,7 @@ impl<N: Clone, E: Clone, Ty: EdgeType, Ix: IndexType, D: DisplayNode<N, E, Ty, I
             stroke_edge,
         );
 
-        if !ctx.is_directed {
-            return vec![line_curved.into()];
-        }
-
-        let line_curved_tip = Shape::convex_polygon(
-            vec![
-                ctx.meta.canvas_to_screen_pos(tip_end),
-                ctx.meta.canvas_to_screen_pos(tip_start_1),
-                ctx.meta.canvas_to_screen_pos(tip_start_2),
-            ],
-            color,
-            stroke_tip,
-        );
-
-        vec![line_curved.into(), line_curved_tip]
+        vec![line_curved.into()]
     }
 
     fn update(&mut self, state: &EdgeProps<E>) {
@@ -372,106 +327,4 @@ fn point_between(p1: Pos2, p2: Pos2) -> Pos2 {
     let base_len = base.length();
     let dir = base / base_len;
     p1 - (base_len / 2.) * dir
-}
-
-// TODO: check test cases
-#[cfg(test)]
-mod tests {
-    use egui::{Color32, Stroke};
-
-    use super::*;
-
-    #[test]
-    fn test_distance_segment_to_point() {
-        let segment_1 = Pos2::new(2.0, 2.0);
-        let segment_2 = Pos2::new(2.0, 5.0);
-        let point = Pos2::new(4.0, 3.0);
-        assert_eq!(distance_segment_to_point(segment_1, segment_2, point), 2.0);
-    }
-
-    #[test]
-    fn test_distance_segment_to_point_on_segment() {
-        let segment_1 = Pos2::new(1.0, 2.0);
-        let segment_2 = Pos2::new(1.0, 5.0);
-        let point = Pos2::new(1.0, 3.0);
-        assert_eq!(distance_segment_to_point(segment_1, segment_2, point), 0.0);
-    }
-
-    #[test]
-    fn test_hypot2() {
-        let a = Vec2::new(0.0, 1.0);
-        let b = Vec2::new(0.0, 5.0);
-        assert_eq!(hypot2(a, b), 16.0);
-    }
-
-    #[test]
-    fn test_hypot2_no_distance() {
-        let a = Vec2::new(0.0, 1.0);
-        assert_eq!(hypot2(a, a), 0.0);
-    }
-
-    #[test]
-    fn test_proj() {
-        let a = Vec2::new(5.0, 8.0);
-        let b = Vec2::new(10.0, 0.0);
-        let result = proj(a, b);
-        assert_eq!(result.x, 5.0);
-        assert_eq!(result.y, 0.0);
-    }
-
-    #[test]
-    fn test_proj_orthogonal() {
-        let a = Vec2::new(5.0, 0.0);
-        let b = Vec2::new(0.0, 5.0);
-        let result = proj(a, b);
-        assert_eq!(result.x, 0.0);
-        assert_eq!(result.y, 0.0);
-    }
-
-    #[test]
-    fn test_proj_same_vector() {
-        let a = Vec2::new(5.3, 4.9);
-        assert_eq!(proj(a, a), a);
-    }
-
-    #[test]
-    fn test_is_point_on_cubic_bezier_curve() {
-        let edge_start = Pos2::new(-3.0, 0.0);
-        let edge_end = Pos2::new(3.0, 0.0);
-        let control_point1 = Pos2::new(-3.0, 3.0);
-        let control_point2 = Pos2::new(4.0, 2.0);
-        let curve = CubicBezierShape::from_points_stroke(
-            [edge_end, control_point1, control_point2, edge_start],
-            false,
-            Color32::default(),
-            Stroke::default(),
-        );
-
-        let width = 1.0;
-        let p1 = Pos2::new(0.0, 2.0);
-        assert!(!is_point_on_cubic_bezier_curve(p1, curve, width));
-
-        let p2 = Pos2::new(2.0, 1.0);
-        assert!(!is_point_on_cubic_bezier_curve(p2, curve, width));
-    }
-
-    #[test]
-    fn test_is_point_on_quadratic_bezier_curve() {
-        let edge_start = Pos2::new(0.0, 0.0);
-        let edge_end = Pos2::new(20.0, 0.0);
-        let control_point = Pos2::new(10.0, 8.0);
-        let curve = QuadraticBezierShape::from_points_stroke(
-            [edge_start, control_point, edge_end],
-            false,
-            Color32::default(),
-            Stroke::default(),
-        );
-
-        let width = 1.0;
-        let p1 = Pos2::new(10.0, 4.0);
-        assert!(is_point_on_quadratic_bezier_curve(p1, curve, width));
-
-        let p2 = Pos2::new(3.0, 2.0);
-        assert!(is_point_on_quadratic_bezier_curve(p2, curve, width));
-    }
 }

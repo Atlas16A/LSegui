@@ -1,8 +1,9 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use eframe::{egui, App, CreationContext};
-use egui::Context;
-use egui_graphs::{DefaultEdgeShape, Graph, GraphView, SettingsInteraction, SettingsNavigation};
+use egui::{epaint::QuadraticBezierShape, Context};
+
+use egui_graphs::{Graph, GraphView, Metadata, SettingsInteraction, SettingsNavigation};
 use petgraph::{
     stable_graph::{DefaultIx, NodeIndex, StableGraph},
     Directed,
@@ -12,90 +13,388 @@ use petgraph::{
 mod theme;
 //Edge Display code
 mod edge;
+use edge::EdgeShape;
 //Node Display code
 mod node;
-use node::NodeShapeAnimated;
+use node::NodeShape;
 
+#[derive(Clone)]
 struct Circles {
     circles: Vec<Circle>,
 }
 
+impl Circles {
+    fn new() -> Self {
+        Self { circles: vec![] }
+    }
+
+    fn circle_layout(&mut self, graph: &mut Graph<(), (), Directed, u32, NodeShape>) {
+        let mut center_y = 0.0;
+        self.circles
+            .clone()
+            .iter_mut()
+            .enumerate()
+            .for_each(|(i, circle)| {
+                match (
+                    circle.word.layout_top.clone(),
+                    circle.word.layout_bottom.clone(),
+                ) {
+                    (RepelTop, Alone) => {
+                        //Last circle and first letter of the word does not match the last letter of the previous word
+                        let word_len = circle.word.word.len() as f32;
+                        let mut angle: f32 = -40.0;
+                        let angle_increment = (360.0 - (30.0 + 45.0)) / word_len;
+                        circle.radius = 20.0 * word_len;
+                        if i != 0 {
+                            center_y += self.circles[i - 1].radius + circle.radius;
+                        }
+
+                        circle.word.nodes.iter().for_each(|node| {
+                            let x = circle.center_x + angle.to_radians().cos() * circle.radius;
+                            let y = center_y + angle.to_radians().sin() * circle.radius;
+                            graph
+                                .node_mut(*node)
+                                .expect("NodeIndex should be within node indices")
+                                .set_location(egui::Pos2::new(x, y));
+                            angle += angle_increment;
+                        });
+                        self.circles[i].center_y = center_y;
+                        self.circles[i].radius = circle.radius;
+                    }
+                    (SameCharTop, Alone) => {
+                        //Last circle and first letter of the word does match the last letter of the previous word
+                        let word_len = circle.word.word.len() as f32;
+                        let mut angle: f32 = -90.0;
+                        let angle_increment = 360.0 / word_len;
+                        circle.radius = 20.0 * word_len;
+                        if i != 0 {
+                            center_y += self.circles[i - 1].radius + circle.radius;
+                        }
+
+                        circle.word.nodes.iter().enumerate().for_each(|(i, node)| {
+                            if i < circle.word.word.len() {
+                                let x = circle.center_x + angle.to_radians().cos() * circle.radius;
+                                let y = center_y + angle.to_radians().sin() * circle.radius;
+                                graph
+                                    .node_mut(*node)
+                                    .expect("NodeIndex should be within node indices")
+                                    .set_location(egui::Pos2::new(x, y));
+
+                                angle += angle_increment;
+                            }
+                        });
+                        self.circles[i].center_y = center_y;
+                        self.circles[i].radius = circle.radius;
+                    }
+                    (Alone, SameCharBottom) | (SameCharTop, SameCharBottom) => {
+                        //First circle and last letter of the word does match the first letter of the next word
+                        let word_len = circle.word.word.len() as f32;
+                        let mut angle: f32 = -90.0;
+                        let angle_increment = 180.0 / (word_len - 1.0);
+                        circle.radius = 20.0 * word_len;
+                        if i != 0 {
+                            center_y += self.circles[i - 1].radius + circle.radius;
+                        }
+
+                        circle.word.nodes.iter().enumerate().for_each(|(i, node)| {
+                            let x = circle.center_x + angle.to_radians().cos() * circle.radius;
+                            let y = center_y + angle.to_radians().sin() * circle.radius;
+                            graph
+                                .node_mut(*node)
+                                .expect("NodeIndex should be within node indices")
+                                .set_location(egui::Pos2::new(x, y));
+
+                            angle += angle_increment;
+                        });
+                        self.circles[i].center_y = center_y;
+                        self.circles[i].radius = circle.radius;
+                    }
+                    (Alone, RepelBottom) | (SameCharTop, RepelBottom) => {
+                        //First circle and last letter of the word does not match the first letter of the next word
+                        let word_len = circle.word.word.len() as f32;
+                        let mut angle: f32 = -90.0;
+                        let angle_increment = 360.0 / word_len;
+                        circle.radius = 20.0 * word_len;
+                        if i != 0 {
+                            center_y += self.circles[i - 1].radius + circle.radius;
+                        }
+
+                        circle.word.nodes.iter().enumerate().for_each(|(i, node)| {
+                            if i == (word_len / 2.0).round() as usize {
+                                angle += 45.0;
+                            }
+
+                            let x = circle.center_x + angle.to_radians().cos() * circle.radius;
+                            let y = center_y + angle.to_radians().sin() * circle.radius;
+                            graph
+                                .node_mut(*node)
+                                .expect("NodeIndex should be within node indices")
+                                .set_location(egui::Pos2::new(x, y));
+
+                            angle += angle_increment;
+                        });
+                        self.circles[i].center_y = center_y;
+                        self.circles[i].radius = circle.radius;
+                    }
+                    (Alone, _) => {
+                        //Only one word/circle in the phrase
+                        let word_len = circle.word.word.len() as f32;
+                        let mut angle: f32 = -90.0;
+                        let angle_increment = 360.0 / word_len;
+                        circle.radius = 20.0 * word_len;
+                        if i != 0 {
+                            center_y += self.circles[i - 1].radius + circle.radius;
+                        }
+
+                        circle.word.nodes.iter().enumerate().for_each(|(i, node)| {
+                            if i < circle.word.word.len() {
+                                let x = circle.center_x + angle.to_radians().cos() * circle.radius;
+                                let y = center_y + angle.to_radians().sin() * circle.radius;
+                                graph
+                                    .node_mut(*node)
+                                    .expect("NodeIndex should be within node indices")
+                                    .set_location(egui::Pos2::new(x, y));
+
+                                angle += angle_increment;
+                            }
+                        });
+                        self.circles[i].center_y = center_y;
+                        self.circles[i].radius = circle.radius;
+                    }
+                    (RepelTop, RepelBottom) => (),
+                    (RepelTop, SameCharBottom) => (),
+                    _ => (),
+                }
+                println!("Center y: {}", center_y);
+                println!("Radius: {}", circle.radius)
+            });
+    }
+    //Draw the circles within the graph view
+    fn draw_circles(&self, ui: &mut egui::Ui) {
+        self.circles.iter().for_each(|circle| {
+            ui.painter().circle_stroke(
+                Metadata::get(ui).canvas_to_screen_pos(egui::Pos2 {
+                    x: (circle.center_x),
+                    y: (circle.center_y),
+                }),
+                Metadata::get(ui).canvas_to_screen_size(circle.radius),
+                egui::Stroke::new(1.0, egui::Color32::WHITE),
+            );
+        })
+    }
+}
+
+#[derive(Clone)]
 struct Circle {
     center_x: f32,
     center_y: f32,
-    //radius: f32,
+    radius: f32,
     word: Word,
 }
 
 impl Circle {
-    fn new(
-        word: Word,
-        graph: &mut Graph<(), (), Directed, u32, NodeShapeAnimated, DefaultEdgeShape>,
-    ) -> Self {
-        let mut angle: f32 = -90.0;
-        let angle_increment = 360.0 / word.word.len() as f32;
-        let radius = 20.0 * word.word.len() as f32;
+    fn new(word: Word) -> Self {
         let center_x = 0.0;
         let center_y = 0.0;
-
-        word.nodes.iter().enumerate().for_each(|(i, node)| {
-            if i < word.word.len() {
-                let x = center_x + angle.to_radians().cos() * radius;
-                let y = center_y + angle.to_radians().sin() * radius;
-                graph
-                    .node_mut(*node)
-                    .expect("NodeIndex should be within node indices")
-                    .set_location(egui::Pos2::new(x, y));
-
-                angle += angle_increment;
-            }
-        });
+        let radius = word.word.len() as f32 * 20.0;
 
         Self {
             center_x,
             center_y,
-            //radius,
+            radius,
             word,
         }
     }
 
-    fn set_pos(
-        &mut self,
-        x: f32,
-        y: f32,
-        graph: &mut Graph<(), (), Directed, u32, NodeShapeAnimated, DefaultEdgeShape>,
-    ) {
-        self.center_x = x;
-        self.center_y = y;
-        //Adjust the position of the circle
-        //And the position of the nodes in the circle
-        let mut angle: f32 = -90.0;
-        let angle_increment = 360.0 / self.word.word.len() as f32;
-        let radius = 20.0 * self.word.word.len() as f32;
+    /* fn set_pos(
+            &mut self,
+            x: f32,
+            y: f32,
+            graph: &mut Graph<(), (), Directed, u32, NodeShapeAnimated, DefaultDefau
+    ltEdgeShape
+            >,
+        ) {
+            self.center_x = x;
+            self.center_y = y;
+            //Adjust the position of the circle
+            //And the position of the nodes in the circle
+            /* let mut angle: f32 = -90.0;
+            let angle_increment = 360.0 / self.word.word.len() as f32;
+            let radius = 20.0 * self.word.word.len() as f32;
 
-        self.word.nodes.iter().enumerate().for_each(|(i, node)| {
-            if i < self.word.word.len() {
+            self.word.nodes.iter().enumerate().for_each(|(i, node)| {
+                if i < self.word.word.len() {
+                    let x = self.center_x + angle.to_radians().cos() * radius;
+                    let y = self.center_y + angle.to_radians().sin() * radius;
+                    graph
+                        .node_mut(*node)
+                        .expect("NodeIndex should be within node indices")
+                        .set_location(egui::Pos2::new(x, y));
+
+                    angle += angle_increment;
+                }
+            }); */
+            /* let layout = self.word.layout.clone();
+            println!("{:?}", layout); */
+            /* let mut word_len = self.word.word.len() as f32 * 0.3;
+            let mut angle_adjustment = word_len / 2.0;
+            angle_adjustment = angle_adjustment.round();
+            word_len = word_len.round();
+            word_len += self.word.word.len() as f32;
+            let radius = 20.0 * word_len;
+            let angle_increment = 360.0 / word_len;
+            let mut angle: f32 = -90.0 + (angle_increment * angle_adjustment);
+
+            self.word.nodes.iter().for_each(|node| {
                 let x = self.center_x + angle.to_radians().cos() * radius;
                 let y = self.center_y + angle.to_radians().sin() * radius;
                 graph
                     .node_mut(*node)
                     .expect("NodeIndex should be within node indices")
                     .set_location(egui::Pos2::new(x, y));
-
                 angle += angle_increment;
+            }); */
+            match (
+                self.word.layout_top.clone(),
+                self.word.layout_bottom.clone(),
+            ) {
+                (RepelTop, Alone) => {
+                    //Last circle and first letter of the word does not match the last letter of the previous word
+                    /* let mut word_len = self.word.word.len() as f32 * 0.3;
+                    let mut angle_adjustment = word_len / 2.0;
+                    angle_adjustment = angle_adjustment.round();
+                    word_len = word_len.round();
+                    word_len += self.word.word.len() as f32;
+                    let radius = 20.0 * word_len;
+                    let angle_increment = 360.0 / word_len;
+                    let mut angle: f32 = -90.0 + (angle_increment * angle_adjustment); */
+                    let word_len = self.word.word.len() as f32;
+                    let mut angle: f32 = -40.0;
+                    let angle_increment = (360.0 - (30.0 + 45.0)) / word_len;
+                    let radius = 20.0 * word_len;
+
+                    self.word.nodes.iter().for_each(|node| {
+                        let x = self.center_x + angle.to_radians().cos() * radius;
+                        let y = self.center_y + angle.to_radians().sin() * radius;
+                        graph
+                            .node_mut(*node)
+                            .expect("NodeIndex should be within node indices")
+                            .set_location(egui::Pos2::new(x, y));
+                        angle += angle_increment;
+                    });
+                }
+                (SameCharTop, Alone) => {
+                    //Last circle and first letter of the word does match the last letter of the previous word
+                    let mut angle: f32 = -90.0;
+                    let angle_increment = 360.0 / self.word.word.len() as f32;
+                    let radius = 20.0 * self.word.word.len() as f32;
+
+                    self.word.nodes.iter().enumerate().for_each(|(i, node)| {
+                        if i < self.word.word.len() {
+                            let x = self.center_x + angle.to_radians().cos() * radius;
+                            let y = self.center_y + angle.to_radians().sin() * radius;
+                            graph
+                                .node_mut(*node)
+                                .expect("NodeIndex should be within node indices")
+                                .set_location(egui::Pos2::new(x, y));
+
+                            angle += angle_increment;
+                        }
+                    });
+                }
+                (Alone, SameCharBottom) | (SameCharTop, SameCharBottom) => {
+                    //First circle and last letter of the word does match the first letter of the next word
+                    let mut angle: f32 = -90.0;
+                    let angle_increment = 180.0 / (self.word.word.len() - 1) as f32;
+                    let radius = 20.0 * self.word.word.len() as f32;
+
+                    self.word.nodes.iter().enumerate().for_each(|(i, node)| {
+                        let x = self.center_x + angle.to_radians().cos() * radius;
+                        let y = self.center_y + angle.to_radians().sin() * radius;
+                        graph
+                            .node_mut(*node)
+                            .expect("NodeIndex should be within node indices")
+                            .set_location(egui::Pos2::new(x, y));
+
+                        angle += angle_increment;
+                    });
+                }
+                (Alone, RepelBottom) | (SameCharTop, RepelBottom) => {
+                    //First circle and last letter of the word does not match the first letter of the next word
+                    let word_len = self.word.word.len() as f32;
+                    let mut angle: f32 = -90.0;
+                    let angle_increment = 360.0 / word_len;
+                    let radius = 20.0 * word_len;
+
+                    self.word.nodes.iter().enumerate().for_each(|(i, node)| {
+                        if i == (word_len / 2.0).round() as usize {
+                            angle += 45.0;
+                        }
+
+                        let x = self.center_x + angle.to_radians().cos() * radius;
+                        let y = self.center_y + angle.to_radians().sin() * radius;
+                        graph
+                            .node_mut(*node)
+                            .expect("NodeIndex should be within node indices")
+                            .set_location(egui::Pos2::new(x, y));
+
+                        angle += angle_increment;
+                    });
+                }
+                (Alone, _) => {
+                    //Only one word/circle in the phrase
+                    let word_len = self.word.word.len() as f32;
+                    let mut angle: f32 = -90.0;
+                    let angle_increment = (360.0 - (30.0 + 45.0)) / word_len;
+                    let radius = 20.0 * word_len;
+
+                    self.word.nodes.iter().enumerate().for_each(|(i, node)| {
+                        if i < self.word.word.len() {
+                            let x = self.center_x + angle.to_radians().cos() * radius;
+                            let y = self.center_y + angle.to_radians().sin() * radius;
+                            graph
+                                .node_mut(*node)
+                                .expect("NodeIndex should be within node indices")
+                                .set_location(egui::Pos2::new(x, y));
+
+                            angle += angle_increment;
+                        }
+                    });
+                }
+                (RepelTop, RepelBottom) => (),
+                (RepelTop, SameCharBottom) => (),
+                _ => (),
             }
-        });
-    }
+        } */
 }
+
 #[derive(Clone)]
 struct Word {
     word: String,
     nodes: Vec<NodeIndex<u32>>,
+    layout_top: NodeLayout,
+    layout_bottom: NodeLayout,
+}
+
+impl Default for Word {
+    fn default() -> Self {
+        Self {
+            word: String::new(),
+            nodes: vec![],
+            layout_top: Alone,
+            layout_bottom: Alone,
+        }
+    }
 }
 
 impl Word {
     fn new(word: String, nodes: Vec<NodeIndex<u32>>) -> Self {
-        Self { word, nodes }
+        Self {
+            word,
+            nodes,
+            layout_top: Alone,
+            layout_bottom: Alone,
+        }
     }
 }
 
@@ -142,20 +441,80 @@ impl Phrase {
             graph: g,
         }
     }
+    fn analyse_phrase(&mut self) {
+        //Analyse the phrase, given N words, where 1 is the first word and N is the last word
+        //for each word in the phrase:
+        //  find a letter shared between each subsequent word, so that word 1 shares a letter with word 2, word 2 shares a letter with word 3, etc.
+        //  if there is no letter shared between the current word and the next word
+        //      then shift the nodes of each of the two words away from the border between the two words
+        //      so that the nodes of the current word are shifted away from the bottom most point of the circle of the current word
+        //      and the nodes of the next word are shifted away from the top most point of the circle of the next word
+        //      node shift should shift the nodes as little distance as possible
+
+        //If the phrase has more than one word
+        if self.phrase_words.len() > 1 {
+            self.phrase_words
+                .clone()
+                .iter()
+                .enumerate()
+                .for_each(|(cword_index, word)| {
+                    //If the current word is not the last word in the phrase
+                    if self.phrase_words.len() > cword_index + 1 {
+                        let current_word = word.clone();
+                        let next_word = self.phrase_words[cword_index + 1].clone();
+                        /* let current_word_char_node_pairs = current_word
+                            .word
+                            .chars()
+                            .zip(current_word.nodes.clone())
+                            .collect::<Vec<_>>();
+                        let next_word_char_node_pairs = next_word
+                            .word
+                            .chars()
+                            .zip(next_word.nodes.clone())
+                            .collect::<Vec<_>>();
+                        let current_next_char_pairs = current_word
+                            .word
+                            .chars()
+                            .zip(next_word.word.chars().rev().clone())
+                            .collect::<Vec<_>>(); */
+                        let mut shared_char: char = ' ';
+                        current_word.word.chars().enumerate().for_each(|(ci, c)| {
+                            //If the last character of the current word is the same as the first character of the next word
+                            if ci == current_word.word.len() - 1 && next_word.word.starts_with(c) {
+                                shared_char = c;
+                                self.phrase_words[cword_index].layout_bottom = SameCharBottom;
+                                self.phrase_words[cword_index + 1].layout_top = SameCharTop;
+                            }
+                            //If the last character of the current word is not the same as the first character of the next word
+                            if ci == current_word.word.len() - 1 && !next_word.word.starts_with(c) {
+                                self.phrase_words[cword_index].layout_bottom = RepelBottom;
+                                self.phrase_words[cword_index + 1].layout_top = RepelTop;
+                            }
+                        });
+                    }
+                })
+        } else {
+            //If the phrase only has one word
+            self.phrase_words[0].layout_top = Alone;
+            self.phrase_words[0].layout_bottom = Alone;
+        }
+    }
 }
 
-/* enum NodeLayout {
+#[derive(Clone, Debug)]
+enum NodeLayout {
     RepelTop,
     RepelBottom,
     SameCharTop,
     SameCharBottom,
+    Alone,
 }
 
-use NodeLayout::*; */
+use NodeLayout::*;
 
 pub struct Lsegui {
     //The graph that will be displayed
-    g: Graph<(), (), Directed, DefaultIx, NodeShapeAnimated>,
+    g: Graph<(), (), Directed, DefaultIx, NodeShape, EdgeShape>,
     //The user input string that will be used to create the graph
     input_string: String,
     //Boolean to display the graph once the user has entered a phrase
@@ -173,7 +532,7 @@ impl Lsegui {
         //Apply the style from the theme module
         let style = theme::style();
         cc.egui_ctx.set_style(style);
-        let circles = Circles { circles: vec![] };
+        let circles = Circles::new();
         let phrase = Phrase::new("Default Phrase");
 
         Self {
@@ -196,6 +555,8 @@ impl Lsegui {
 
     fn graph_creation(&mut self, phrase: &str) {
         self.phrase = Phrase::new(phrase);
+
+        self.phrase.analyse_phrase();
 
         self.phrase.phrase_words.iter().for_each(|word| {
             let word_char_pairs = word.word.chars().zip(word.nodes.clone());
@@ -489,44 +850,48 @@ impl Lsegui {
         });
 
         self.node_circle_create();
-
-        //testing ideas above
     }
 
     fn node_circle_create(&mut self) {
-        //Position each node along a circle for each word in phrase
-        //with radius based off the length of the word
-        //with the first circle being at the center of the canvas
-        //and the next circle being the radius of the first circle + the radius of the next circle
-
-        let center_x = 0.0; // x-coordinate of the center of the canvas
-        let mut center_y = 0.0; // y-coordinate of the center of the canvas
-        let mut prev_radius = 0.0; // radius of the previous circle to calculate the center_y of the next circle
-
         self.phrase.phrase_words.iter().for_each(|word| {
-            let radius = 20.0 * word.word.len() as f32;
-            if prev_radius != 0.0 {
-                center_y += prev_radius + radius;
-            }
-            let mut circle = Circle::new(word.clone(), &mut self.g);
-            circle.set_pos(center_x, center_y, &mut self.g);
-
+            let circle = Circle::new(word.clone());
             self.circles.circles.push(circle);
-
-            prev_radius = radius;
         });
+        self.circles.circle_layout(&mut self.g);
     }
 
-    /* fn analyse_phrase(&mut self, phrase: Vec<String>, node_indices: Vec<NodeIndex>) {
-        //Analyse the phrase, given N words, where 1 is the first word and N is the last word
-        //for each word in the phrase:
-        //  find a letter shared between each subsequent word, so that word 1 shares a letter with word 2, word 2 shares a letter with word 3, etc.
-        //  if there is no letter shared between the current word and the next word
-        //      then shift the nodes of each of the two words away from the border between the two words
-        //      so that the nodes of the current word are shifted away from the bottom most point of the circle of the current word
-        //      and the nodes of the next word are shifted away from the top most point of the circle of the next word
-        //      node shift should shift the nodes as little distance as possible
-    } */
+    fn art_draw(&mut self, ui: &mut egui::Ui) {
+        self.circles.circles.iter_mut().for_each(|circle| {
+            circle.word.nodes.iter().enumerate().for_each(|(i, node)| {
+                let mut node_pos = self.g.node(*node).unwrap().location();
+
+                node_pos = Metadata::get(ui).canvas_to_screen_pos(node_pos);
+                ui.painter().circle_stroke(
+                    node_pos,
+                    Metadata::get(ui).canvas_to_screen_size(20.0),
+                    egui::Stroke::new(1.0, egui::Color32::WHITE),
+                );
+                let curve = QuadraticBezierShape {
+                    points: [
+                        //The start point of the curve
+                        node_pos,
+                        //The control point of the curve
+                        Metadata::get(ui).canvas_to_screen_pos(egui::Pos2::new(0.0, 0.0)),
+                        //The end point of the curve
+                        Metadata::get(ui).canvas_to_screen_pos(egui::Pos2::new(
+                            circle.center_x,
+                            circle.center_y,
+                        )),
+                    ],
+                    closed: false,
+                    fill: egui::Color32::TRANSPARENT,
+                    stroke: egui::Stroke::new(1.0, egui::Color32::WHITE),
+                };
+                ui.painter()
+                    .add(egui::Shape::Path(curve.to_path_shape(Some(0.5))));
+            });
+        });
+    }
 }
 
 //Check if the char in the phrase is connected to any other char in the phrase and add an edge between them
@@ -547,42 +912,6 @@ fn refactor_connections_check(
     });
 }
 
-/* fn node_clean_up(
-    g: &mut StableGraph<(), ()>,
-    node_indices: Vec<NodeIndex>,
-    k: usize,
-    char_node_pairs: Vec<(char, NodeIndex)>,
-    char: char,
-) {
-    //If the current node does not have any incoming or outgoing edges
-    if g.neighbors_directed(node_indices[k], petgraph::Direction::Outgoing)
-        .count()
-        == 0
-        && g.neighbors_directed(node_indices[k], petgraph::Direction::Incoming)
-            .count()
-            == 0
-    {
-        //Out of the nodes in the current word,
-        //connect the current node to the node
-        //representing the character closest to the current character on the alphabet
-        let mut closest_index = 0;
-        let mut closest_distance = 26;
-        char_node_pairs
-            .iter()
-            .filter(|(c, _)| *c != char)
-            .enumerate()
-            .for_each(|(i, (c, _))| {
-                let distance = (char as i32 - *c as i32).abs();
-                if distance < closest_distance {
-                    closest_distance = distance;
-                    closest_index = i;
-                }
-            });
-        g.add_edge(node_indices[k], node_indices[closest_index], ());
-    }
-}
- */
-
 impl App for Lsegui {
     fn update(&mut self, ctx: &Context, _: &mut eframe::Frame) {
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
@@ -601,28 +930,36 @@ impl App for Lsegui {
                     self.graph_creation(phrase);
                     //Display the graph
                     self.graph_show = true;
+
+                    self.phrase.phrase_words.iter().for_each(|word| {
+                        println!("Word: {}", word.word);
+                        println!("Word layout_top{:?}", word.layout_top);
+                        println!("Word layout_bottom{:?}", word.layout_bottom);
+                    });
                 }
             });
         });
 
         egui::CentralPanel::default().show(ctx, |ui| {
             if self.graph_show {
-                ui.add(
-                    &mut GraphView::<_, _, _, _, NodeShapeAnimated, DefaultEdgeShape>::new(
-                        &mut self.g,
-                    )
-                    .with_navigations(
-                        &SettingsNavigation::default()
-                            .with_fit_to_screen_enabled(false)
-                            .with_zoom_and_pan_enabled(true),
-                    )
-                    .with_interactions(
-                        &SettingsInteraction::default()
-                            .with_dragging_enabled(true)
-                            .with_node_selection_enabled(true)
-                            .with_edge_selection_enabled(true),
-                    ),
+                let graph = ui.add(
+                    &mut GraphView::<_, _, _, _, NodeShape, EdgeShape>::new(&mut self.g)
+                        .with_navigations(
+                            &SettingsNavigation::default()
+                                .with_fit_to_screen_enabled(false)
+                                .with_zoom_and_pan_enabled(true),
+                        )
+                        .with_interactions(
+                            &SettingsInteraction::default()
+                                .with_dragging_enabled(true)
+                                .with_node_selection_enabled(true)
+                                .with_edge_selection_enabled(true),
+                        ),
                 );
+                let clip_rect = graph.rect;
+                ui.set_clip_rect(clip_rect);
+                self.circles.draw_circles(ui);
+                self.art_draw(ui);
             }
         });
     }
