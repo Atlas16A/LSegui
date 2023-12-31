@@ -30,7 +30,7 @@ impl<N: Clone> From<NodeProps<N>> for NodeShape {
             dragged: node_props.dragged,
             label_text: node_props.label.to_string(),
 
-            radius: 5.0,
+            radius: 3.0,
         }
     }
 }
@@ -66,13 +66,13 @@ impl<N: Clone, E: Clone, Ty: EdgeType, Ix: IndexType> DisplayNode<N, E, Ty, Ix> 
         };
         res.push(circle_shape.into());
 
-        let circle_stroke = CircleShape {
+        /* let circle_stroke = CircleShape {
             center: circle_center,
             radius: circle_radius * 1.5,
             fill: Default::default(),
             stroke: Stroke::new(1.0, color),
         };
-        res.push(circle_stroke.into());
+        res.push(circle_stroke.into()); */
         //Stroke::new(1.0, color);
 
         // display label

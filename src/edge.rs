@@ -2,7 +2,7 @@ use std::f32::consts::PI;
 
 use egui::{
     epaint::{CubicBezierShape, QuadraticBezierShape},
-    Color32, Pos2, Shape, Stroke, Vec2,
+    Color32, Pos2, Stroke, Vec2,
 };
 use petgraph::{matrix_graph::Nullable, stable_graph::IndexType, EdgeType};
 
@@ -10,6 +10,7 @@ use egui_graphs::{DisplayNode, DrawContext, EdgeProps, Node};
 
 use egui_graphs::DisplayEdge;
 
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone, Debug)]
 pub struct EdgeShape {
     pub order: usize,
@@ -50,13 +51,6 @@ impl<N: Clone, E: Clone, Ty: EdgeType, Ix: IndexType, D: DisplayNode<N, E, Ty, I
             return is_inside_loop(start, self, pos);
         }
 
-        let pos_start = start.location();
-        let pos_end = end.location();
-
-        if self.order == 0 {
-            return is_inside_line(pos_start, pos_end, pos, self);
-        }
-
         is_inside_curve(start, end, self, pos)
     }
 
@@ -89,35 +83,23 @@ impl<N: Clone, E: Clone, Ty: EdgeType, Ix: IndexType, D: DisplayNode<N, E, Ty, I
         let start_connector_point = start.display().closest_boundary_point(dir);
         let end_connector_point = end.display().closest_boundary_point(-dir);
 
-        let tip_end = end_connector_point;
-
         let edge_start = start_connector_point;
-        let edge_end = end_connector_point - self.tip_size * dir;
+        let edge_end = end_connector_point;
 
         let stroke_edge = Stroke::new(self.width * ctx.meta.zoom, color);
 
         // draw curved edge
 
         let dir_perpendicular = Vec2::new(-dir.y, dir.x);
-        let center_point = (edge_start + edge_end.to_vec2()).to_vec2() / 2.;
+        let center_point = point_between(edge_start, edge_end);
         let control_point =
-            (center_point + dir_perpendicular * self.curve_size * self.order as f32).to_pos2();
-
-        let tip_dir = (control_point - tip_end).normalized();
-
-        let arrow_tip_dir_1 = rotate_vector(tip_dir, self.tip_angle) * self.tip_size;
-        let arrow_tip_dir_2 = rotate_vector(tip_dir, -self.tip_angle) * self.tip_size;
-
-        let tip_start_1 = tip_end + arrow_tip_dir_1;
-        let tip_start_2 = tip_end + arrow_tip_dir_2;
-
-        let edge_end_curved = point_between(tip_start_1, tip_start_2);
+            center_point + dir_perpendicular * self.curve_size * (self.order + 1) as f32;
 
         let line_curved = QuadraticBezierShape::from_points_stroke(
             [
                 ctx.meta.canvas_to_screen_pos(edge_start),
                 ctx.meta.canvas_to_screen_pos(control_point),
-                ctx.meta.canvas_to_screen_pos(edge_end_curved),
+                ctx.meta.canvas_to_screen_pos(edge_end),
             ],
             false,
             Color32::TRANSPARENT,
@@ -187,7 +169,7 @@ fn shape_curved(
     let dir_perpendicular = Vec2::new(-dir.y, dir.x);
     let center_point = (edge_start + tip_end.to_vec2()).to_vec2() / 2.0;
     let control_point =
-        (center_point + dir_perpendicular * e.curve_size * e.order as f32).to_pos2();
+        (center_point + dir_perpendicular * e.curve_size * (e.order + 1) as f32).to_pos2();
 
     QuadraticBezierShape::from_points_stroke(
         [edge_start, control_point, edge_end],
@@ -206,11 +188,6 @@ fn is_inside_loop<E: Clone, N: Clone, Ix: IndexType, Ty: EdgeType, D: DisplayNod
 
     let shape = shape_looped(node_size, node.location(), Stroke::default(), e);
     is_point_on_cubic_bezier_curve(pos, shape, e.width)
-}
-
-fn is_inside_line(pos_start: Pos2, pos_end: Pos2, pos: Pos2, e: &EdgeShape) -> bool {
-    let distance = distance_segment_to_point(pos_start, pos_end, pos);
-    distance <= e.width
 }
 
 fn is_inside_curve<
@@ -312,13 +289,6 @@ fn is_point_on_bezier_curve(point: Pos2, curve_points: Vec<Pos2>, width: f32) ->
         previous_point = Some(p);
     }
     false
-}
-
-/// rotates vector by angle
-fn rotate_vector(vec: Vec2, angle: f32) -> Vec2 {
-    let cos = angle.cos();
-    let sin = angle.sin();
-    Vec2::new(cos * vec.x - sin * vec.y, sin * vec.x + cos * vec.y)
 }
 
 /// finds point exactly in the middle between 2 points

@@ -17,7 +17,7 @@ instant =  {version = "0.1.12", features = ["wasm-bindgen"] }
 
 [patch.crates-io]
 #"egui_graphs" = { path = "./egui_graphs" }
-#"egui_graphs" = { git = "https://github.com/blitzarx1/egui_graphs" }
+"egui_graphs" = { git = "https://github.com/blitzarx1/egui_graphs" }
 
 # native:
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]

@@ -841,8 +841,7 @@ dependencies = [
 [[package]]
 name = "egui_graphs"
 version = "0.17.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "41a8b4233ff957d7e65c4727ebe014b1d81f1bc15032f8656f88d15724259f38"
+source = "git+https://github.com/blitzarx1/egui_graphs#874f7ef498f6f31f5d0c1b805b6395da27bdd58b"
 dependencies = [
  "egui",
  "petgraph",
