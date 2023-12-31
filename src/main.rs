@@ -106,7 +106,7 @@ impl Circles {
                             center_y += self.circles[i - 1].radius + circle.radius;
                         }
 
-                        circle.word.nodes.iter().enumerate().for_each(|(i, node)| {
+                        circle.word.nodes.iter().enumerate().for_each(|(_i, node)| {
                             let x = circle.center_x + angle.to_radians().cos() * circle.radius;
                             let y = center_y + angle.to_radians().sin() * circle.radius;
                             graph
