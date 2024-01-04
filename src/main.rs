@@ -723,6 +723,7 @@ impl Lsegui {
     }
 
     fn node_circle_create(&mut self) {
+        self.circles.circles.clear();
         self.phrase.phrase_words.iter().for_each(|word| {
             let circle = Circle::new(word.clone());
             self.circles.circles.push(circle);
@@ -757,6 +758,7 @@ impl App for Lsegui {
                 //Take in user text input
                 let re = ui.text_edit_singleline(&mut self.input_string);
                 if re.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                    self.graph_show = false;
                     println!("Input: {}", self.input_string);
                     //Clear the current graph just in case
                     self.reset_graph(ui);
@@ -774,6 +776,13 @@ impl App for Lsegui {
                         println!("Word layout_bottom{:?}", word.layout_bottom);
                     });
                 }
+            });
+            ui.separator();
+            ui.horizontal(|ui| {
+                if ui.button("Reset").clicked() {
+                    self.reset_graph(ui);
+                }
+                ui.set_min_height(25.0);
             });
         });
 
@@ -798,7 +807,25 @@ impl App for Lsegui {
                 self.circles.draw_circles(ui);
             }
         });
+
+        egui::TopBottomPanel::bottom("bottom_panel").show(ctx, |ui| {
+            ui.horizontal(|ui| {
+                ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
+                    patreon_and_github(ui);
+                });
+            });
+        });
     }
+}
+
+fn patreon_and_github(ui: &mut egui::Ui) {
+    ui.label("Made by: Rin aka The Golden Atlas");
+    ui.horizontal(|ui| {
+        ui.spacing_mut().item_spacing.x = 0.0;
+        ui.label("Consider Donating through ");
+        ui.hyperlink_to("Patreon", "https://patreon.com/Rinoxide");
+        ui.label(".");
+    });
 }
 
 // When compiling natively:
