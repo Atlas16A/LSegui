@@ -103,6 +103,11 @@ impl CircleLayout {
                     let mut previous_w_nodes =
                         previous_word.word.chars().zip(previous_word.nodes.iter());
                     println!("{} ", current_word.word.clone());
+                    circle.center.y = circle.radius
+                        + self.circle_list[i - 1].center.y
+                        + self.circle_list[i - 1].radius;
+                    circle.center.x = self.circle_list[i - 1].center.x;
+                    angle += (360.0 - 20.0) / word.word.len() as f32;
                     current_word.word.chars().enumerate().for_each(|(ci, c)| {
                         //If the current word starts with a character in the previous word
                         if ci == 0 && previous_word.word.contains(c) {
@@ -121,31 +126,18 @@ impl CircleLayout {
                             angle = (circle.origin.y - self.circle_list[i - 1].center.y)
                                 .atan2(circle.origin.x - self.circle_list[i - 1].center.x)
                                 .to_degrees();
-                            println!("{:?}", circle.origin);
-                            println!("previous center {:?}", self.circle_list[i - 1].center);
-                            println!("angle {}", angle);
 
                             let hyp = self.circle_list[i - 1].center.distance(circle.origin)
                                 + circle.radius;
-                            println!("hyp {}", hyp);
 
                             circle.center.x =
                                 hyp * angle.to_radians().cos() + self.circle_list[i - 1].center.x;
-                            println!("x {}", circle.center.x);
+
                             circle.center.y =
                                 hyp * angle.to_radians().sin() + self.circle_list[i - 1].center.y;
-                            println!("y {}", circle.center.y);
+
                             angle += 180.0;
-
-                            return;
                         }
-                        circle.center.y = circle.radius
-                            + self.circle_list[i - 1].center.y
-                            + self.circle_list[i - 1].radius;
-
-                        angle += (360.0 - 20.0) / word.word.len() as f32;
-                        println!("angle {}", angle);
-                        println!("angle increment {}", angle_increment);
                     });
                 }
 
