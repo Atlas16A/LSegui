@@ -3,11 +3,20 @@
 use eframe::{egui, App, CreationContext};
 use egui::Context;
 
-use egui_graphs::{Graph, GraphView, Metadata, SettingsInteraction, SettingsNavigation};
+use egui_graphs::{Graph, GraphView, SettingsInteraction, SettingsNavigation};
 use petgraph::{
     stable_graph::{DefaultIx, NodeIndex, StableGraph},
     Directed,
 };
+
+/* use eframe::{egui, App, CreationContext};
+use egui::{epaint::CubicBezierShape, Context, Pos2, Stroke};
+
+use egui_graphs::{Graph, GraphView, Metadata, SettingsInteraction, SettingsNavigation};
+use petgraph::{
+    stable_graph::{DefaultIx, NodeIndex, StableGraph},
+    Directed,
+}; */
 
 //eframe and egui styling
 mod theme;
@@ -18,7 +27,10 @@ use edge::EdgeShape;
 mod node;
 use node::NodeShape;
 
-#[derive(Clone)]
+mod circle_layout;
+use circle_layout::CircleLayout;
+
+/* #[derive(Clone)]
 struct Circles {
     circles: Vec<Circle>,
 }
@@ -202,15 +214,66 @@ impl Circles {
     }
     //Draw the circles within the graph view
     fn draw_circles(&self, ui: &mut egui::Ui) {
+        /* let perfect_bezier = CubicBezierShape {
+            points: [
+                Pos2::new(0.0, 1.000_055_2),
+                Pos2::new(0.55342686, 0.99873585),
+                Pos2::new(0.99873585, 0.55342686),
+                Pos2::new(1.000_055_2, 0.0),
+            ],
+            closed: false,
+            stroke: Stroke::new(1.0, color),
+            fill: Default::default(),
+        }; */
+
         self.circles.iter().for_each(|circle| {
-            ui.painter().circle_stroke(
-                Metadata::get(ui).canvas_to_screen_pos(egui::Pos2 {
-                    x: (circle.center_x),
-                    y: (circle.center_y),
-                }),
-                Metadata::get(ui).canvas_to_screen_size(circle.radius),
-                egui::Stroke::new(1.0, egui::Color32::WHITE),
-            );
+            let circle_center = Metadata::get(ui).canvas_to_screen_pos(egui::Pos2 {
+                x: (circle.center_x),
+                y: (circle.center_y),
+            });
+            let circle_radius = Metadata::get(ui).canvas_to_screen_size(circle.radius);
+
+            let a = 1.000_055_2 + circle_radius;
+            let b = 0.55342686 + circle_radius / 1.81;
+            let c = 0.99873585 + circle_radius;
+
+            let p0 = Pos2::new(circle_center.x, circle_center.y + a); //Bottom point
+            let p1 = Pos2::new(circle_center.x + b, circle_center.y + c);
+            let p2 = Pos2::new(circle_center.x + c, circle_center.y + b);
+            let p3 = Pos2::new(circle_center.x + a, circle_center.y); //Right point
+            let p4 = Pos2::new(circle_center.x + c, circle_center.y - b);
+            let p5 = Pos2::new(circle_center.x + b, circle_center.y - c);
+            let p6 = Pos2::new(circle_center.x, circle_center.y - a); //Top point
+            let p7 = Pos2::new(circle_center.x - b, circle_center.y - c);
+            let p8 = Pos2::new(circle_center.x - c, circle_center.y - b);
+            let p9 = Pos2::new(circle_center.x - a, circle_center.y); //Left point
+            let p10 = Pos2::new(circle_center.x - c, circle_center.y + b);
+            let p11 = Pos2::new(circle_center.x - b, circle_center.y + c);
+
+            ui.painter().add(CubicBezierShape {
+                points: [p0, p1, p2, p3],
+                stroke: Stroke::new(1.0, egui::Color32::WHITE),
+                fill: Default::default(),
+                closed: false,
+            });
+            ui.painter().add(CubicBezierShape {
+                points: [p3, p4, p5, p6],
+                stroke: Stroke::new(1.0, egui::Color32::RED),
+                fill: Default::default(),
+                closed: false,
+            });
+            ui.painter().add(CubicBezierShape {
+                points: [p6, p7, p8, p9],
+                stroke: Stroke::new(1.0, egui::Color32::BLUE),
+                fill: Default::default(),
+                closed: false,
+            });
+            ui.painter().add(CubicBezierShape {
+                points: [p9, p10, p11, p0],
+                stroke: Stroke::new(1.0, egui::Color32::GREEN),
+                fill: Default::default(),
+                closed: false,
+            });
         })
     }
 }
@@ -236,10 +299,10 @@ impl Circle {
             word,
         }
     }
-}
+} */
 
 #[derive(Clone)]
-struct Word {
+pub struct Word {
     word: String,
     nodes: Vec<NodeIndex<u32>>,
     layout_top: NodeLayout,
@@ -268,7 +331,7 @@ impl Word {
     }
 }
 
-struct Phrase {
+pub struct Phrase {
     //phrase: Vec<String>,
     phrase_words: Vec<Word>,
     graph: StableGraph<(), ()>,
@@ -322,7 +385,7 @@ impl Phrase {
         //      node shift should shift the nodes as little distance as possible
 
         //If the phrase has more than one word
-        if self.phrase_words.len() > 1 {
+        /* if self.phrase_words.len() > 1 {
             self.phrase_words
                 .clone()
                 .iter()
@@ -360,6 +423,12 @@ impl Phrase {
                                 self.phrase_words[cword_index].layout_bottom = RepelBottom;
                                 self.phrase_words[cword_index + 1].layout_top = RepelTop;
                             }
+                            //If the current word starts with a character in the previous word
+                            if ci == 0 && next_word.word.ends_with(c) {
+                                shared_char = c;
+                                self.phrase_words[cword_index].layout_bottom = SameCharBottom;
+                                self.phrase_words[cword_index + 1].layout_top = SameCharTop;
+                            }
                         });
                     }
                 })
@@ -367,16 +436,16 @@ impl Phrase {
             //If the phrase only has one word
             self.phrase_words[0].layout_top = Alone;
             self.phrase_words[0].layout_bottom = Alone;
-        }
+        } */
     }
 }
 
 #[derive(Clone, Debug)]
 enum NodeLayout {
-    RepelTop,
+    /* RepelTop,
     RepelBottom,
     SameCharTop,
-    SameCharBottom,
+    SameCharBottom, */
     Alone,
 }
 
@@ -384,13 +453,13 @@ use NodeLayout::*;
 
 pub struct Lsegui {
     //The graph that will be displayed
-    g: Graph<(), (), Directed, DefaultIx, NodeShape, EdgeShape>,
+    pub g: Graph<(), (), Directed, DefaultIx, NodeShape, EdgeShape>,
     //The user input string that will be used to create the graph
     input_string: String,
     //Boolean to display the graph once the user has entered a phrase
     graph_show: bool,
     //Circles to display the nodes in the graph
-    circles: Circles,
+    circles: CircleLayout,
     //The processed phrase that the user entered
     phrase: Phrase,
 }
@@ -402,7 +471,7 @@ impl Lsegui {
         //Apply the style from the theme module
         let style = theme::style();
         cc.egui_ctx.set_style(style);
-        let circles = Circles::new();
+        let circles = CircleLayout::new();
         let phrase = Phrase::new("Default Phrase");
 
         Self {
@@ -421,6 +490,7 @@ impl Lsegui {
         self.g = Graph::from(&g);
 
         GraphView::<(), (), Directed, DefaultIx>::reset_metadata(ui);
+        self.circles = CircleLayout::new();
     }
 
     fn graph_creation(&mut self, phrase: &str) {
@@ -719,17 +789,18 @@ impl Lsegui {
             }
         });
 
-        self.node_circle_create();
+        //self.node_circle_create();
+        self.circles.layout(&self.phrase, &mut self.g);
     }
 
-    fn node_circle_create(&mut self) {
+    /* fn node_circle_create(&mut self) {
         self.circles.circles.clear();
         self.phrase.phrase_words.iter().for_each(|word| {
             let circle = Circle::new(word.clone());
             self.circles.circles.push(circle);
         });
         self.circles.circle_layout(&mut self.g);
-    }
+    } */
 }
 
 //Check if the char in the phrase is connected to any other char in the phrase and add an edge between them
@@ -779,10 +850,10 @@ impl App for Lsegui {
             });
             ui.separator();
             ui.horizontal(|ui| {
+                ui.set_min_height(25.0);
                 if ui.button("Reset").clicked() {
                     self.reset_graph(ui);
                 }
-                ui.set_min_height(25.0);
             });
         });
 
