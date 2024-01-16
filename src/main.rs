@@ -875,6 +875,7 @@ impl App for Lsegui {
                 );
                 let clip_rect = graph.rect;
                 ui.set_clip_rect(clip_rect);
+                self.circles.fix_circle_layout(&mut self.g);
                 self.circles.draw_circles(ui);
             }
         });
